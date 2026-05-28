@@ -3,6 +3,7 @@ services:
     name: docshift
     runtime: python
     plan: free
+    healthCheckPath:/health
     buildCommand: |
       apt-get update -qq && \
       apt-get install -y -qq libreoffice-writer libreoffice-common --no-install-recommends && \
