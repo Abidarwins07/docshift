@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: docshift
+    runtime: python
+    plan: free
+    buildCommand: |
+      apt-get update -qq && \
+      apt-get install -y -qq libreoffice-writer libreoffice-common --no-install-recommends && \
+      pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 4 --timeout 120 --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.14.3
+    healthCheckPath: /health

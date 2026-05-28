@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DocShift — Word to PDF Converter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:        #0B0D11;
+    --surface:   #13161C;
+    --surface2:  #1C202A;
+    --border:    rgba(255,255,255,0.07);
+    --border2:   rgba(255,255,255,0.13);
+    --text:      #F0F2F7;
+    --muted:     #8B90A0;
+    --accent:    #F59E0B;
+    --accent2:   #FBB840;
+    --success:   #22C55E;
+    --error:     #F87171;
+    --blue:      #60A5FA;
+    --radius:    14px;
+    --radius-sm: 8px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ─── Noise texture overlay ─────────────────────────────────────────────── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ─── Header ────────────────────────────────────────────────────────────── */
+  header {
+    position: relative; z-index: 1;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1.25rem 2rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+  .logo-icon {
+    width: 34px; height: 34px; background: var(--accent);
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .logo-icon svg { width: 18px; height: 18px; fill: #0B0D11; }
+  .logo-text {
+    font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.15rem;
+    letter-spacing: -0.01em; color: var(--text);
+  }
+  .logo-text span { color: var(--accent); }
+  .badge {
+    font-size: 11px; font-weight: 500; padding: 3px 10px;
+    background: rgba(245,158,11,0.12); color: var(--accent);
+    border: 1px solid rgba(245,158,11,0.25); border-radius: 20px;
+  }
+
+  /* ─── Main ──────────────────────────────────────────────────────────────── */
+  main {
+    position: relative; z-index: 1;
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    padding: 3rem 1rem 4rem;
+  }
+  .hero { text-align: center; max-width: 560px; margin-bottom: 2.5rem; }
+  .hero h1 {
+    font-family: 'Syne', sans-serif; font-weight: 800;
+    font-size: clamp(2rem, 5vw, 3rem); line-height: 1.1;
+    letter-spacing: -0.03em; color: var(--text);
+    margin-bottom: 0.75rem;
+  }
+  .hero h1 em { font-style: normal; color: var(--accent); }
+  .hero p { font-size: 1rem; color: var(--muted); line-height: 1.65; }
+  .stats {
+    display: flex; gap: 1.5rem; justify-content: center;
+    margin-top: 1.25rem; flex-wrap: wrap;
+  }
+  .stat { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--muted); }
+  .stat-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+
+  /* ─── Upload Card ───────────────────────────────────────────────────────── */
+  .card {
+    width: 100%; max-width: 700px;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: var(--radius); overflow: hidden;
+  }
+
+  /* Drop zone */
+  .dropzone {
+    padding: 2.5rem 2rem;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.2s;
+    text-align: center;
+    position: relative;
+  }
+  .dropzone.drag-over { background: rgba(245,158,11,0.05); border-color: rgba(245,158,11,0.3); }
+  .dropzone input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .drop-icon {
+    width: 56px; height: 56px; margin: 0 auto 1rem;
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 14px; display: flex; align-items: center; justify-content: center;
+  }
+  .drop-icon svg { width: 26px; height: 26px; stroke: var(--accent); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .drop-title {
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1.05rem;
+    margin-bottom: 0.4rem; color: var(--text);
+  }
+  .drop-sub { font-size: 0.85rem; color: var(--muted); }
+  .drop-sub strong { color: var(--accent); font-weight: 500; }
+  .drop-tags { display: flex; gap: 8px; justify-content: center; margin-top: 1rem; flex-wrap: wrap; }
+  .tag {
+    font-size: 11px; font-weight: 500; padding: 3px 10px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 20px; color: var(--muted);
+  }
+
+  /* File list */
+  #file-list { padding: 0; }
+  .file-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0.85rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    animation: slideIn 0.2s ease;
+  }
+  @keyframes slideIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+  .file-icon {
+    width: 38px; height: 38px; flex-shrink: 0;
+    background: rgba(96,165,250,0.1); border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .file-icon svg { width: 18px; height: 18px; stroke: var(--blue); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .file-info { flex: 1; min-width: 0; }
+  .file-name {
+    font-size: 0.875rem; font-weight: 500; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .file-size { font-size: 0.75rem; color: var(--muted); margin-top: 1px; }
+  .file-status { font-size: 12px; font-weight: 500; white-space: nowrap; }
+  .status-wait { color: var(--muted); }
+  .status-ok   { color: var(--success); }
+  .status-err  { color: var(--error); }
+  .status-converting { color: var(--accent); display: flex; align-items: center; gap: 5px; }
+  .spin { animation: spin 0.8s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .remove-btn {
+    background: none; border: none; cursor: pointer; padding: 4px;
+    color: var(--muted); border-radius: 4px; line-height: 0;
+    transition: color 0.15s;
+  }
+  .remove-btn:hover { color: var(--error); }
+
+  /* Progress bar */
+  #progress-bar {
+    height: 3px; background: var(--surface2); display: none;
+  }
+  #progress-fill {
+    height: 100%; background: var(--accent);
+    width: 0%; transition: width 0.4s ease;
+    border-radius: 0 2px 2px 0;
+  }
+
+  /* Actions */
+  .actions {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.25rem; gap: 12px; flex-wrap: wrap;
+  }
+  .file-count { font-size: 0.8rem; color: var(--muted); }
+  .file-count span { color: var(--text); font-weight: 500; }
+  .btn-group { display: flex; gap: 8px; }
+  .btn {
+    padding: 0.6rem 1.25rem; border-radius: var(--radius-sm);
+    font-size: 0.875rem; font-weight: 500; cursor: pointer;
+    border: none; font-family: 'DM Sans', sans-serif;
+    transition: opacity 0.15s, transform 0.1s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-ghost {
+    background: var(--surface2); color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { color: var(--text); border-color: var(--border2); }
+  .btn-primary {
+    background: var(--accent); color: #0B0D11; font-weight: 600;
+  }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--surface2); border: 1px solid var(--border2);
+    padding: 0.75rem 1.25rem; border-radius: 10px;
+    font-size: 0.875rem; color: var(--text); z-index: 100;
+    transition: transform 0.3s ease, opacity 0.3s;
+    opacity: 0; display: flex; align-items: center; gap: 8px; white-space: nowrap;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  #toast.success .t-icon { color: var(--success); }
+  #toast.error   .t-icon { color: var(--error); }
+
+  /* Features row */
+  .features {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px; max-width: 700px; width: 100%; margin-top: 1.5rem;
+  }
+  .feat {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 0.875rem 1rem;
+    display: flex; align-items: flex-start; gap: 10px;
+  }
+  .feat-icon { flex-shrink: 0; margin-top: 1px; }
+  .feat-icon svg { width: 16px; height: 16px; stroke: var(--accent); fill: none; stroke-width: 2; stroke-linecap: round; }
+  .feat-title { font-size: 0.8rem; font-weight: 500; color: var(--text); }
+  .feat-sub { font-size: 0.72rem; color: var(--muted); margin-top: 1px; }
+
+  /* Footer */
+  footer {
+    position: relative; z-index: 1;
+    text-align: center; padding: 1.25rem;
+    font-size: 0.75rem; color: var(--muted);
+    border-top: 1px solid var(--border);
+  }
+
+  /* ─── Responsive ────────────────────────────────────────────────────────── */
+  @media (max-width: 600px) {
+    header { padding: 1rem; }
+    main { padding: 2rem 0.75rem 3rem; }
+    .hero h1 { font-size: 1.75rem; }
+    .actions { flex-direction: column; align-items: stretch; }
+    .btn-group { width: 100%; }
+    .btn { flex: 1; justify-content: center; }
+    .dropzone { padding: 1.75rem 1.25rem; }
+    .features { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 380px) {
+    .features { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="logo" href="/">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/><path d="M14 2v6h6" fill="none" stroke="#0B0D11" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </div>
+    <span class="logo-text">Doc<span>Shift</span></span>
+  </a>
+  <span class="badge">Free · No sign-up</span>
+</header>
+
+<main>
+  <div class="hero">
+    <h1>Convert Word to <em>PDF</em><br/>instantly</h1>
+    <p>Upload up to 10 .docx or .doc files at once.<br/>We validate, convert, and hand back clean PDFs.</p>
+    <div class="stats">
+      <span class="stat"><span class="stat-dot"></span>No file stored after download</span>
+      <span class="stat"><span class="stat-dot"></span>Up to 10 files / 20 MB each</span>
+      <span class="stat"><span class="stat-dot"></span>100% free</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="file-input" accept=".docx,.doc" multiple/>
+      <div class="drop-icon">
+        <svg viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+      </div>
+      <p class="drop-title">Drag & drop your Word files here</p>
+      <p class="drop-sub">or <strong>click to browse</strong> from your device</p>
+      <div class="drop-tags">
+        <span class="tag">.docx</span>
+        <span class="tag">.doc</span>
+        <span class="tag">max 10 files</span>
+        <span class="tag">20 MB / file</span>
+      </div>
+    </div>
+
+    <div id="progress-bar"><div id="progress-fill"></div></div>
+    <div id="file-list"></div>
+
+    <div class="actions" id="actions" style="display:none;">
+      <p class="file-count"><span id="count">0</span> file(s) selected</p>
+      <div class="btn-group">
+        <button class="btn btn-ghost" id="clear-btn" onclick="clearAll()">
+          <svg width="14" height="14" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          Clear
+        </button>
+        <button class="btn btn-primary" id="convert-btn" onclick="startConvert()">
+          <svg width="14" height="14" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Convert to PDF
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="features">
+    <div class="feat">
+      <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+      <div><p class="feat-title">File validation</p><p class="feat-sub">Magic-byte check, not just extension</p></div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon"><svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M7 12l4 4 6-8"/></svg></div>
+      <div><p class="feat-title">Multi-file support</p><p class="feat-sub">Up to 10 files, returned as a ZIP</p></div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+      <div><p class="feat-title">Format preserved</p><p class="feat-sub">LibreOffice headless rendering</p></div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>
+      <div><p class="feat-title">Private & secure</p><p class="feat-sub">Files deleted after 2 minutes</p></div>
+    </div>
+  </div>
+</main>
+
+<footer>© 2025 DocShift — Built with Flask &amp; LibreOffice · <a href="#" style="color:var(--muted)">Privacy</a></footer>
+
+<div id="toast"><span class="t-icon" id="toast-icon">✓</span><span id="toast-msg"></span></div>
+
+<script>
+  const dropzone  = document.getElementById('dropzone');
+  const fileInput = document.getElementById('file-input');
+  const fileList  = document.getElementById('file-list');
+  const actions   = document.getElementById('actions');
+  const countEl   = document.getElementById('count');
+  const convertBtn= document.getElementById('convert-btn');
+  const progress  = document.getElementById('progress-bar');
+  const fill      = document.getElementById('progress-fill');
+
+  let selectedFiles = [];
+
+  // ─── Drag & drop ───────────────────────────────────────────────────────────
+  ['dragenter','dragover'].forEach(e =>
+    dropzone.addEventListener(e, ev => { ev.preventDefault(); dropzone.classList.add('drag-over'); }));
+  ['dragleave','drop'].forEach(e =>
+    dropzone.addEventListener(e, ev => { ev.preventDefault(); dropzone.classList.remove('drag-over'); }));
+  dropzone.addEventListener('drop', ev => addFiles(ev.dataTransfer.files));
+  fileInput.addEventListener('change', () => addFiles(fileInput.files));
+
+  function addFiles(raw) {
+    const MAX = 10;
+    const allowed = ['.docx', '.doc'];
+    Array.from(raw).forEach(f => {
+      if (selectedFiles.length >= MAX) { showToast('Max 10 files allowed.', 'error'); return; }
+      const ext = '.' + f.name.split('.').pop().toLowerCase();
+      if (!allowed.includes(ext)) {
+        showToast(`"${f.name}" is not a .docx or .doc file.`, 'error'); return;
+      }
+      if (selectedFiles.find(x => x.name === f.name && x.size === f.size)) return;
+      selectedFiles.push(f);
+    });
+    fileInput.value = '';
+    render();
+  }
+
+  function formatSize(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+    return (b/(1024*1024)).toFixed(1) + ' MB';
+  }
+
+  function render() {
+    fileList.innerHTML = '';
+    selectedFiles.forEach((f, i) => {
+      const item = document.createElement('div');
+      item.className = 'file-item';
+      item.id = `fi-${i}`;
+      item.innerHTML = `
+        <div class="file-icon">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </div>
+        <div class="file-info">
+          <p class="file-name" title="${f.name}">${f.name}</p>
+          <p class="file-size">${formatSize(f.size)}</p>
+        </div>
+        <span class="file-status status-wait" id="fs-${i}">Queued</span>
+        <button class="remove-btn" onclick="removeFile(${i})" title="Remove">
+          <svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>`;
+      fileList.appendChild(item);
+    });
+    countEl.textContent = selectedFiles.length;
+    actions.style.display = selectedFiles.length ? 'flex' : 'none';
+    convertBtn.disabled = false;
+  }
+
+  function removeFile(i) {
+    selectedFiles.splice(i, 1);
+    render();
+  }
+
+  function clearAll() {
+    selectedFiles = [];
+    render();
+    fill.style.width = '0%';
+    progress.style.display = 'none';
+  }
+
+  // ─── Convert ────────────────────────────────────────────────────────────────
+  async function startConvert() {
+    if (!selectedFiles.length) return;
+    convertBtn.disabled = true;
+    progress.style.display = 'block';
+    fill.style.width = '10%';
+
+    // Set all to "converting"
+    selectedFiles.forEach((_, i) => {
+      const s = document.getElementById(`fs-${i}`);
+      if (s) s.outerHTML =
+        `<span class="file-status status-converting" id="fs-${i}"><span class="spin">⟳</span> Converting</span>`;
+      const rb = document.querySelector(`#fi-${i} .remove-btn`);
+      if (rb) rb.style.display = 'none';
+    });
+
+    const form = new FormData();
+    selectedFiles.forEach(f => form.append('files', f));
+
+    fill.style.width = '40%';
+
+    try {
+      const res = await fetch('/convert', { method: 'POST', body: form });
+      fill.style.width = '80%';
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Server error ${res.status}`);
+      }
+
+      fill.style.width = '100%';
+      const blob = await res.blob();
+      const cd   = res.headers.get('Content-Disposition') || '';
+      const match= cd.match(/filename="?([^"]+)"?/);
+      const name = match ? match[1] : (blob.type === 'application/zip' ? 'converted_pdfs.zip' : 'converted.pdf');
+
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = name; a.click();
+      URL.revokeObjectURL(url);
+
+      selectedFiles.forEach((_, i) => {
+        const s = document.getElementById(`fs-${i}`);
+        if (s) { s.className = 'file-status status-ok'; s.textContent = '✓ Done'; }
+      });
+      showToast(`Download started: ${name}`, 'success');
+
+    } catch (err) {
+      selectedFiles.forEach((_, i) => {
+        const s = document.getElementById(`fs-${i}`);
+        if (s) { s.className = 'file-status status-err'; s.textContent = '✕ Failed'; }
+      });
+      showToast(err.message || 'Conversion failed.', 'error');
+    } finally {
+      convertBtn.disabled = false;
+      setTimeout(() => { fill.style.width = '0%'; progress.style.display = 'none'; }, 1200);
+    }
+  }
+
+  // ─── Toast ──────────────────────────────────────────────────────────────────
+  let _toastTimer;
+  function showToast(msg, type = 'success') {
+    const t = document.getElementById('toast');
+    document.getElementById('toast-msg').textContent = msg;
+    document.getElementById('toast-icon').textContent = type === 'success' ? '✓' : '✕';
+    t.className = `show ${type}`;
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => { t.className = ''; }, 3500);
+  }
+</script>
+</body>
+</html>
